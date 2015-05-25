@@ -27,7 +27,7 @@ $ docker run -d \
               -v /your/storage/path/:/plexWatch \
               -p 8080:8080 \
               --link <your-plex>:plex
-              --volumes-from plex
+              --volumes-from <your-plex>
               haugene/plexWatchWeb
 ```
 
