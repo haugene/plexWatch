@@ -28,7 +28,7 @@ $ docker run -d \
               -p 8080:8080 \
               --link <your-plex>:plex
               --volumes-from <your-plex>
-              haugene/plexWatchWeb
+              haugene/plexwatchweb
 ```
 
 PlexWatchWeb will be avaliable at http://your-host:8080 and you should go there to finish the setup.
