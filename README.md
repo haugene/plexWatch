@@ -1,99 +1,46 @@
-This is a Dockerfile for plexWatch (https://github.com/ljunkie/plexWatch) and plexWatchWeb (https://github.com/ecleese/plexWatchWeb)
-
-Prerequisites
+PlexWatchWeb configured for container linking
 ----------
 
-* You must have Plex installed in a docker, running in host mode.  Needo's Plex docker (https://registry.hub.docker.com/u/needo/plex/) is recommended
-* You must have a Plex Pass
+I was having issues setting up PlexWatch and PlexWatchWeb using images from the registry.
+First it seems like PlexWatchWeb is not compatible with the lastest version of PlexWatch(?) and I wanted to avoid putting the containers in host or bridge mode. Also getting past some permission and other issues was a hassle.
 
+I'm using the timhaak/plex image for my Plex server, and it exposes a /config volume where the logs can be found. I therefore configured this container to work by container linking to my Plex container so that I don't have to update the config files manually.
 
-Upgrade Instructions
+This container, with one prerequisite, will run a preconfigured plexWatchWeb and no configuration is neccessary.
+
+Prerequisite
 ----------
+When we start the container, we will link our Plex container exposing /config to the plexWatchWeb.
+For plexWatch to access Plex we need to tell Plex to allow access from hosts in the Docker ip-range.
 
-* Stop the container, delete the container, and follow the new installation instructions.
-* Note: if you are having any problems at all with your existing container, delete config.pl and config.php to start fresh.
+We need to edit Preferences.xml in Plex so that the allowedNetworks attribute looks something like this:
+>allowedNetworks="192.168.1.0/255.255.255.0,172.17.0.0/255.255.0.0"
 
+In this case, devices on the home network (192.168.1.x) and docker network (172.17.x.x) will be allowed access without password prompt.
 
-New Installation Instructions
+Start the container
 ----------
+After configuring Plex to let us in, start PlexWatchWeb
 
-* Start watching a movie in Plex, leave it running
-* Run the docker in host mode:
 ```
-docker run -d --net="host" --name="plexWatch" -v "/path/to/plexWatch/":"/plexWatch":rw -v "/path/to/plex/logs/":"/logs":ro -v /etc/localtime:/etc/localtime:ro -p 8080:8080 needo/plexwatch
-```
-Where: 
-   * plexWatch:
-      - the path in the container should be "/plexWatch"
-      - the path on the array should be something like "/mnt/cache/cache_only/plexWatch/"
-        (this directory will contain the config.pl and config.php files you may need to edit)
-      - the container needs read/write access
-      - example:  "/mnt/cache/cache_only/plexWatch/":"/plexWatch":rw
-
-   * logs:
-      - the path in the container should be "/logs"
-      - the path on the array should be something like "/mnt/cache/appdata/Plex/Library/Application Support/Plex Media Server/Logs/"
-        (this directory should contain a file named "Plex Media Server.log")
-      - the container needs read only access
-      - example:  "/mnt/cache/appdata/Plex/Library/Application Support/Plex Media Server/Logs/":"/logs":ro
-
-
-* Try it out: http://server:8080/plexWatch/
-
-If all goes well, plexWatchWeb will load and show you the movie that is currently playing in Plex.
-
-If the container stops immediately or you get an error message, see the "Troubleshooting" section.
-
-
-Host mode vs Bridge mode
-----------
-
-The easiest way to setup the plexWatch docker is to run it in host mode.  But if you would like to run it in bridge mode:
-* Change the "server" value in config.pl and the "pmsIp" value in config.php from "localhost" to the ip address of your server.
-   * Note: If you ever switch back to host mode, change those values back to "localhost"
-* Put your Plex username and password in both the config.pl and config.php files.
-
-Then run the plexWatch docker in bridge mode:
-```
-docker run -d --net="bridge" --name="plexWatch" -v "/path/to/plexWatch/":"/plexWatch":rw -v "/path/to/plex/logs/":"/logs":ro -v /etc/localtime:/etc/localtime:ro -p 8080:8080 needo/plexwatch
+$ docker run -d \
+              -v /your/storage/path/:/plexWatch \
+              -p 8080:8080 \
+              --link <your-plex>:plex
+              --volumes-from plex
+              haugene/plexWatchWeb
 ```
 
-Note that Plex itself should still be run in host mode.
+PlexWatchWeb will be avaliable at http://your-host:8080 and you should go there to finish the setup.
+Plex IP Address: plex
+Port: 32400 (default)
+Secure port: 32443 (default)
+PlexWatch db: /plexWatch/plexWatch.db
 
-Track IP Addresses
-----------
-
-If you want to track the IP Addresses of your Plex users:
-* Login to Plex and go to Settings -> Server -> Network and click Show Advanced.  Then enable debug logging.
-* Modify config.pl and change $log_client_ip from 0 to 1
-* After a few minutes, plexWatch will start tracking IP addresses
-
+This should then give you a working plexWatchWeb instance. Be aware that the plexWatch cron job runs once every minute. On the first run it will initialize the database and quit, the next run will initialize the DB and start reading the logs. In short: be sure to actually play something and give it some minutes before concluding it doesn't work on the first run.
 
 Troubleshooting
 ----------
+There are several areas for improvements in this container. Things like external configuration options and run newer version of plexWatch. But I'm leaving that for later, PR's are welcome!
 
-To read the docker logs:
-* From the unRAID docker manager, click on the status/log column
-* Or from a shell type "docker logs plexWatch"
-
-Common errors:
-
-* If the log shows "Unable to locate the 'Plex Media Server.log' file":
-   - Check your paths as described in the "New Installation Instructions" section.  Capitalization matters.
-
-* If the log shows: "AH00558: apache2: Could not reliably determine the server's fully qualified domain name..."
-   - It is safe to ignore this message
-
-* If plexWatchWeb loads, but gives a "Failed to access plexWatch database" error message:
-   - Login to Plex and go to Settings -> Server -> Connect.  Verify that the account you are signed in as has a Plex Pass.
-   - Start watching a movie, wait a few minutes, then try accessing plexWatchWeb again.
-
-* If plexWatchWeb loads, but gives a "Failed to access Plex Media Server" error message:
-   - Ensure the Plex docker is running(!) and is in host mode
-   - Review the "Host mode vs Bridge mode" section.  It is likely that the wrong server ip or wrong username/pasword is specified in the config files.
-     The same details need to be provided in both config.pl and config.php.
-
-* Still having problems?
-   - Review the docker log as described above
-   - Review the debug.log file located in your plexWatch directory
-   - If you have edited config.pl or config.php, delete them and restart the docker to start fresh
+Other than that, this is a fork and you can check the main repository for more info.
